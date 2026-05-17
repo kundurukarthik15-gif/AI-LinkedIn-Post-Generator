@@ -1,0 +1,36 @@
+{
+  "name": "linkedin-ai-automation",
+  "version": "1.0.0",
+  "description": "AI-powered LinkedIn automation with OpenAI, Cloudinary, and Composio",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "check-linkedin": "node scripts/check-linkedin-setup.js",
+    "connect-linkedin": "node scripts/connect-linkedin.js"
+  },
+  "keywords": [
+    "linkedin",
+    "openai",
+    "automation",
+    "composio",
+    "mcp"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@composio/core": "^0.10.0",
+    "@google/generative-ai": "^0.21.0",
+    "axios": "^1.7.9",
+    "cloudinary": "^2.5.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^4.77.0",
+    "uuid": "^11.0.5"
+  }
+}
