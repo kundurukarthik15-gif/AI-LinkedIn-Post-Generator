@@ -11,7 +11,6 @@ let composioClient = null;
 function buildExecuteOptions(argumentsPayload) {
   const opts = {
     userId: config.composio.userId,
-    version: config.composio.linkedinToolkitVersion,
     arguments: argumentsPayload,
   };
   if (config.composio.connectedAccountId) {
