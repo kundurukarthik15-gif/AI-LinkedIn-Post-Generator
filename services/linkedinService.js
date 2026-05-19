@@ -50,7 +50,6 @@ async function publishToLinkedIn(draft) {
   if (!author) throw new Error('LINKEDIN_AUTHOR_URN is required. Set it in environment variables.');
 
   const body = {
-    connectedAccountId: config.composio.connectedAccountId,
     entityId: config.composio.userId,
     input: {
       author,
