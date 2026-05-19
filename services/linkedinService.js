@@ -51,6 +51,7 @@ async function publishToLinkedIn(draft) {
 
   const body = {
     connectedAccountId: config.composio.connectedAccountId,
+    entityId: config.composio.userId,
     input: {
       author,
       commentary,
@@ -61,16 +62,22 @@ async function publishToLinkedIn(draft) {
 
   if (draft.imageUrl) body.input.images = [draft.imageUrl];
 
-  const res = await axios.post(
-    'https://backend.composio.dev/api/v2/actions/LINKEDIN_CREATE_LINKED_IN_POST/execute',
-    body,
-    {
-      headers: {
-        'x-api-key': config.composio.apiKey,
-        'Content-Type': 'application/json',
-      },
-    }
-  );
+  let res;
+  try {
+    res = await axios.post(
+      'https://backend.composio.dev/api/v2/actions/LINKEDIN_CREATE_LINKED_IN_POST/execute',
+      body,
+      {
+        headers: {
+          'x-api-key': config.composio.apiKey,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+  } catch (err) {
+    const detail = err.response?.data;
+    throw new Error(JSON.stringify(detail) || err.message);
+  }
 
   const result = res.data;
   if (result?.error || result?.successful === false) {
