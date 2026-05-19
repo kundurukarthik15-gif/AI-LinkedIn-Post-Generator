@@ -50,25 +50,20 @@ async function publishToLinkedIn(draft) {
   if (!author) throw new Error('LINKEDIN_AUTHOR_URN is required. Set it in environment variables.');
 
   const composio = getComposio();
-
-  const executeParams = {
-    entityId: config.composio.userId,
-    version: 'v20260424_00',
-    arguments: {
-      author,
-      commentary,
-      visibility: 'PUBLIC',
-      lifecycleState: 'PUBLISHED',
-    },
-  };
-
-  if (draft.imageUrl) executeParams.arguments.images = [draft.imageUrl];
+  const entity = composio.getEntity(config.composio.userId);
 
   let result;
   try {
-    result = await composio.tools.execute(
+    result = await entity.execute(
       'LINKEDIN_CREATE_LINKED_IN_POST',
-      executeParams
+      {
+        author,
+        commentary,
+        visibility: 'PUBLIC',
+        lifecycleState: 'PUBLISHED',
+      },
+      undefined,
+      'v20260424_00'
     );
   } catch (err) {
     throw new Error(err.message || 'LinkedIn publish failed.');
