@@ -65,7 +65,7 @@ async function publishToLinkedIn(draft) {
 
   let result;
   try {
-    result = await composio.actions.execute(
+    result = await composio.tools.execute(
       'LINKEDIN_CREATE_LINKED_IN_POST',
       executeParams
     );
