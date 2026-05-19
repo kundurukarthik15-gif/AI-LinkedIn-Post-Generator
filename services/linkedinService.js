@@ -65,7 +65,7 @@ async function publishToLinkedIn(draft) {
   let res;
   try {
     res = await axios.post(
-      'https://backend.composio.dev/api/v2/actions/LINKEDIN_CREATE_LINKED_IN_POST/execute',
+      'https://backend.composio.dev/api/v1/actions/LINKEDIN_CREATE_LINKED_IN_POST/execute',
       body,
       {
         headers: {
