@@ -1,98 +1,36 @@
 /**
- * LinkedIn publishing via Composio (MCP-compatible toolkit).
- * Never publishes without explicit confirmation — that check lives in the controller.
+ * LinkedIn publishing via Composio REST API.
  */
+const axios = require('axios');
 const { Composio } = require('@composio/core');
 const { config, getComposioMissingKeys } = require('../config/env');
 
 let composioClient = null;
 
-/** Build options for composio.tools.execute (user + optional connected account). */
-function buildExecuteOptions(argumentsPayload) {
-  const opts = {
-    userId: config.composio.userId,
-    arguments: argumentsPayload,
-  };
-  if (config.composio.connectedAccountId) {
-    opts.connectedAccountId = config.composio.connectedAccountId;
-  }
-  return opts;
-}
-
 function getComposio() {
-  if (config.mockLinkedInPublish) {
-    return null;
-  }
-
-  const missing = getComposioMissingKeys();
-  if (missing.length > 0) {
-    throw new Error(`Missing Composio environment variables: ${missing.join(', ')}`);
-  }
-
   if (!composioClient) {
     composioClient = new Composio({ apiKey: config.composio.apiKey });
   }
   return composioClient;
 }
 
-/**
- * Resolve LinkedIn author URN (person ID) for posting.
- */
 function normalizeAuthorUrn(value) {
   const urn = (value || '').trim();
   if (!urn) return null;
   if (urn.startsWith('http://') || urn.startsWith('https://')) {
-    throw new Error(
-      'LINKEDIN_AUTHOR_URN must be urn:li:person:YOUR_ID (from Composio LINKEDIN_GET_MY_INFO), not a profile URL.'
-    );
+    throw new Error('LINKEDIN_AUTHOR_URN must be urn:li:person:YOUR_ID, not a profile URL.');
   }
-  if (urn.startsWith('urn:li:person:')) return urn;
   if (urn.startsWith('urn:li:')) return urn;
   return `urn:li:person:${urn}`;
 }
 
-async function resolveAuthorUrn() {
-  if (config.composio.authorUrn) {
-    return normalizeAuthorUrn(config.composio.authorUrn);
-  }
-
-  const composio = getComposio();
-  const result = await composio.tools.execute(
-    'LINKEDIN_GET_MY_INFO',
-    buildExecuteOptions({})
-  );
-
-  const data = result?.data ?? result;
-  const id =
-    data?.id ||
-    data?.sub ||
-    data?.data?.id ||
-    data?.data?.sub;
-
-  if (!id) {
-    throw new Error(
-      'Could not resolve LinkedIn author ID. Set LINKEDIN_AUTHOR_URN in .env or connect LinkedIn in Composio.'
-    );
-  }
-
-  return `urn:li:person:${id}`;
-}
-
-/**
- * Build full commentary text (content + hashtags + optional image note).
- */
 function buildCommentary(draft) {
   const hashtagLine = (draft.hashtags || []).join(' ');
   let text = draft.content.trim();
-  if (hashtagLine) {
-    text = `${text}\n\n${hashtagLine}`;
-  }
+  if (hashtagLine) text = `${text}\n\n${hashtagLine}`;
   return text.slice(0, 3000);
 }
 
-/**
- * Publish a confirmed draft to LinkedIn using Composio.
- */
 async function publishToLinkedIn(draft) {
   const commentary = buildCommentary(draft);
 
@@ -101,33 +39,42 @@ async function publishToLinkedIn(draft) {
       mock: true,
       message: 'Mock publish successful (MOCK_LINKEDIN_PUBLISH=true)',
       commentary,
-      imageUrl: draft.imageUrl || null,
       publishedAt: new Date().toISOString(),
     };
   }
 
-  const composio = getComposio();
-  const author = await resolveAuthorUrn();
+  const missing = getComposioMissingKeys();
+  if (missing.length > 0) throw new Error(`Missing: ${missing.join(', ')}`);
 
-  const argumentsPayload = {
-    author,
-    commentary,
-    visibility: 'PUBLIC',
-    lifecycleState: 'PUBLISHED',
+  const author = normalizeAuthorUrn(config.composio.authorUrn);
+  if (!author) throw new Error('LINKEDIN_AUTHOR_URN is required. Set it in environment variables.');
+
+  const body = {
+    connectedAccountId: config.composio.connectedAccountId,
+    input: {
+      author,
+      commentary,
+      visibility: 'PUBLIC',
+      lifecycleState: 'PUBLISHED',
+    },
   };
 
-  // Attach image if Cloudinary URL is available (Composio uploads to LinkedIn)
-  if (draft.imageUrl) {
-    argumentsPayload.images = [draft.imageUrl];
-  }
+  if (draft.imageUrl) body.input.images = [draft.imageUrl];
 
-  const result = await composio.tools.execute(
-    'LINKEDIN_CREATE_LINKED_IN_POST',
-    buildExecuteOptions(argumentsPayload)
+  const res = await axios.post(
+    'https://backend.composio.dev/api/v2/actions/LINKEDIN_CREATE_LINKED_IN_POST/execute',
+    body,
+    {
+      headers: {
+        'x-api-key': config.composio.apiKey,
+        'Content-Type': 'application/json',
+      },
+    }
   );
 
+  const result = res.data;
   if (result?.error || result?.successful === false) {
-    throw new Error(result?.error || 'LinkedIn publish failed via Composio.');
+    throw new Error(result?.error || 'LinkedIn publish failed.');
   }
 
   return {
@@ -138,9 +85,6 @@ async function publishToLinkedIn(draft) {
   };
 }
 
-/**
- * Check whether Composio/LinkedIn is configured (for status endpoint).
- */
 async function getLinkedInStatus() {
   if (config.mockLinkedInPublish) {
     return { connected: true, mode: 'mock', message: 'Running in mock publish mode.' };
@@ -148,12 +92,7 @@ async function getLinkedInStatus() {
 
   const missing = getComposioMissingKeys();
   if (missing.length > 0) {
-    return {
-      connected: false,
-      mode: 'unconfigured',
-      missing,
-      message: 'Add COMPOSIO_API_KEY and connect LinkedIn at https://platform.composio.dev',
-    };
+    return { connected: false, mode: 'unconfigured', missing, message: 'Add COMPOSIO_API_KEY.' };
   }
 
   try {
@@ -172,20 +111,9 @@ async function getLinkedInStatus() {
         message: 'LinkedIn is connected for this user. Ready to publish.',
       };
     }
-
-    return {
-      connected: false,
-      mode: 'composio',
-      userId: config.composio.userId,
-      message:
-        `No LinkedIn connection for user "${config.composio.userId}". Run: npm run connect-linkedin`,
-    };
+    return { connected: false, mode: 'composio', message: 'No active LinkedIn connection.' };
   } catch (err) {
-    return {
-      connected: false,
-      mode: 'composio',
-      message: err.message || 'Could not verify LinkedIn connection.',
-    };
+    return { connected: false, mode: 'composio', message: err.message };
   }
 }
 
