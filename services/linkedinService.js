@@ -53,6 +53,7 @@ async function publishToLinkedIn(draft) {
 
   const executeParams = {
     entityId: config.composio.userId,
+    version: '20260424_00',
     arguments: {
       author,
       commentary,
