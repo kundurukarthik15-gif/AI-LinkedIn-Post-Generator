@@ -49,10 +49,11 @@ async function publishToLinkedIn(draft) {
   const author = normalizeAuthorUrn(config.composio.authorUrn);
   if (!author) throw new Error('LINKEDIN_AUTHOR_URN is required. Set it in environment variables.');
 
-  const body = {
+  const composio = getComposio();
+
+  const executeParams = {
     entityId: config.composio.userId,
-    appName: 'linkedin',
-    input: {
+    arguments: {
       author,
       commentary,
       visibility: 'PUBLIC',
@@ -60,28 +61,20 @@ async function publishToLinkedIn(draft) {
     },
   };
 
-  if (draft.imageUrl) body.input.images = [draft.imageUrl];
+  if (draft.imageUrl) executeParams.arguments.images = [draft.imageUrl];
 
-  let res;
+  let result;
   try {
-    res = await axios.post(
-      'https://backend.composio.dev/api/v3/actions/LINKEDIN_CREATE_LINKED_IN_POST/execute',
-      body,
-      {
-        headers: {
-          'x-api-key': config.composio.apiKey,
-          'Content-Type': 'application/json',
-        },
-      }
+    result = await composio.actions.execute(
+      'LINKEDIN_CREATE_LINKED_IN_POST',
+      executeParams
     );
   } catch (err) {
-    const detail = err.response?.data;
-    throw new Error(JSON.stringify(detail) || err.message);
+    throw new Error(err.message || 'LinkedIn publish failed.');
   }
 
-  const result = res.data;
   if (result?.error || result?.successful === false) {
-    throw new Error(result?.error || 'LinkedIn publish failed.');
+    throw new Error(JSON.stringify(result?.error) || 'LinkedIn publish failed.');
   }
 
   return {
