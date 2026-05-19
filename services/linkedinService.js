@@ -51,6 +51,7 @@ async function publishToLinkedIn(draft) {
 
   const body = {
     entityId: config.composio.userId,
+    appName: 'linkedin',
     input: {
       author,
       commentary,
