@@ -1,18 +1,10 @@
 /**
- * LinkedIn publishing via Composio REST API.
+ * LinkedIn publishing via Composio REST API (no SDK).
  */
 const axios = require('axios');
-const { Composio } = require('@composio/core');
 const { config, getComposioMissingKeys } = require('../config/env');
 
-let composioClient = null;
-
-function getComposio() {
-  if (!composioClient) {
-    composioClient = new Composio({ apiKey: config.composio.apiKey });
-  }
-  return composioClient;
-}
+const COMPOSIO_BASE = 'https://backend.composio.dev/api/v2';
 
 function normalizeAuthorUrn(value) {
   const urn = (value || '').trim();
@@ -49,24 +41,50 @@ async function publishToLinkedIn(draft) {
   const author = normalizeAuthorUrn(config.composio.authorUrn);
   if (!author) throw new Error('LINKEDIN_AUTHOR_URN is required. Set it in environment variables.');
 
-  const composio = getComposio();
-  const entity = composio.getEntity(config.composio.userId);
+  const body = {
+    userId: config.composio.userId,
+    arguments: {
+      author,
+      lifecycleState: 'PUBLISHED',
+      visibility: {
+        'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC',
+      },
+      specificContent: {
+        'com.linkedin.ugc.ShareContent': {
+          shareMediaCategory: 'NONE',
+          shareCommentary: { text: commentary },
+          media: [
+            {
+              status: 'READY',
+              originalUrl: draft.imageUrl || 'https://www.linkedin.com',
+              ...(draft.imageUrl ? { title: { text: commentary.slice(0, 200) } } : {}),
+            },
+          ],
+        },
+      },
+    },
+  };
+
+  if (config.composio.connectedAccountId) {
+    body.connectedAccountId = config.composio.connectedAccountId;
+  }
 
   let result;
   try {
-    result = await entity.execute(
-      'LINKEDIN_CREATE_LINKED_IN_POST',
+    const response = await axios.post(
+      `${COMPOSIO_BASE}/actions/LINKEDIN_CREATE_ARTICLE_OR_URL_SHARE/execute`,
+      body,
       {
-        author,
-        commentary,
-        visibility: 'PUBLIC',
-        lifecycleState: 'PUBLISHED',
-      },
-      undefined,
-      'v20260424_00'
+        headers: {
+          'x-api-key': config.composio.apiKey,
+          'Content-Type': 'application/json',
+        },
+      }
     );
+    result = response.data;
   } catch (err) {
-    throw new Error(err.message || 'LinkedIn publish failed.');
+    const msg = err.response?.data?.message || err.response?.data?.error || err.message;
+    throw new Error(msg || 'LinkedIn publish failed.');
   }
 
   if (result?.error || result?.successful === false) {
@@ -92,12 +110,15 @@ async function getLinkedInStatus() {
   }
 
   try {
-    const composio = getComposio();
-    const list = await composio.connectedAccounts.list({
-      userIds: [config.composio.userId],
-      toolkitSlugs: ['linkedin'],
+    const response = await axios.get(`${COMPOSIO_BASE}/connectedAccounts`, {
+      headers: { 'x-api-key': config.composio.apiKey },
+      params: {
+        userIds: config.composio.userId,
+        toolkitSlugs: 'linkedin',
+      },
     });
-    const active = (list.items || []).filter((a) => a.status === 'ACTIVE');
+    const items = response.data?.items || [];
+    const active = items.filter((a) => a.status === 'ACTIVE');
     if (active.length > 0) {
       return {
         connected: true,
@@ -109,7 +130,8 @@ async function getLinkedInStatus() {
     }
     return { connected: false, mode: 'composio', message: 'No active LinkedIn connection.' };
   } catch (err) {
-    return { connected: false, mode: 'composio', message: err.message };
+    const msg = err.response?.data?.message || err.message;
+    return { connected: false, mode: 'composio', message: msg };
   }
 }
 
