@@ -65,11 +65,6 @@ async function publishToLinkedIn(draft) {
     },
   };
 
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (config.composio.connectedAccountId && uuidRegex.test(config.composio.connectedAccountId.trim())) {
-    body.connectedAccountId = config.composio.connectedAccountId.trim();
-  }
-
   let result;
   try {
     const response = await axios.post(
