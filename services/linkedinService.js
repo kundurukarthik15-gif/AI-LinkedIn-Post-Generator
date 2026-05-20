@@ -65,8 +65,9 @@ async function publishToLinkedIn(draft) {
     },
   };
 
-  if (config.composio.connectedAccountId) {
-    body.connectedAccountId = config.composio.connectedAccountId;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (config.composio.connectedAccountId && uuidRegex.test(config.composio.connectedAccountId.trim())) {
+    body.connectedAccountId = config.composio.connectedAccountId.trim();
   }
 
   let result;
