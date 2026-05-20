@@ -28,15 +28,35 @@ function getModel() {
 
 /**
  * Generate LinkedIn post content using Google Gemini.
+ * Retries up to 3 times on 503 (high demand) errors.
  */
 async function generateLinkedInPost(input) {
   const model = getModel();
   const userPrompt = buildUserPrompt(input);
 
-  const result = await model.generateContent(userPrompt);
-  const raw = result.response.text();
+  const MAX_RETRIES = 3;
+  let lastErr;
 
-  return parseLinkedInResponse(raw, 'Gemini', input);
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const result = await model.generateContent(userPrompt);
+      const raw = result.response.text();
+      return parseLinkedInResponse(raw, 'Gemini', input);
+    } catch (err) {
+      const is503 = err.message?.includes('503') || err.status === 503;
+      if (is503 && attempt < MAX_RETRIES) {
+        await new Promise((r) => setTimeout(r, attempt * 2000));
+        continue;
+      }
+      lastErr = err;
+      break;
+    }
+  }
+
+  if (lastErr?.message?.includes('503')) {
+    throw new Error('Gemini is experiencing high demand right now. Please try again in a moment.');
+  }
+  throw lastErr;
 }
 
 module.exports = {
