@@ -9,20 +9,19 @@ const {
   parseLinkedInResponse,
 } = require('./postGenerationUtils');
 
-function getModel() {
-  const missing = getGeminiMissingKeys();
-  if (missing.length > 0) {
-    throw new Error(`Missing environment variables: ${missing.join(', ')}`);
-  }
+const FALLBACK_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
 
-  const genAI = new GoogleGenerativeAI(config.gemini.apiKey);
-  return genAI.getGenerativeModel({
-    model: config.gemini.model,
+function getClient() {
+  const missing = getGeminiMissingKeys();
+  if (missing.length > 0) throw new Error(`Missing environment variables: ${missing.join(', ')}`);
+  return new GoogleGenerativeAI(config.gemini.apiKey);
+}
+
+function getModel(modelName) {
+  return getClient().getGenerativeModel({
+    model: modelName,
     systemInstruction: SYSTEM_PROMPT,
-    generationConfig: {
-      temperature: 0.7,
-      responseMimeType: 'application/json',
-    },
+    generationConfig: { temperature: 0.7, responseMimeType: 'application/json' },
   });
 }
 
@@ -31,32 +30,30 @@ function getModel() {
  * Retries up to 3 times on 503 (high demand) errors.
  */
 async function generateLinkedInPost(input) {
-  const model = getModel();
   const userPrompt = buildUserPrompt(input);
+  const primaryModel = config.gemini.model || 'gemini-2.5-flash';
+  const models = [primaryModel, ...FALLBACK_MODELS.filter((m) => m !== primaryModel)];
 
-  const MAX_RETRIES = 3;
   let lastErr;
-
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const result = await model.generateContent(userPrompt);
-      const raw = result.response.text();
-      return parseLinkedInResponse(raw, 'Gemini', input);
-    } catch (err) {
-      const is503 = err.message?.includes('503') || err.status === 503;
-      if (is503 && attempt < MAX_RETRIES) {
-        await new Promise((r) => setTimeout(r, attempt * 2000));
-        continue;
+  for (const modelName of models) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const result = await getModel(modelName).generateContent(userPrompt);
+        const raw = result.response.text();
+        return parseLinkedInResponse(raw, 'Gemini', input);
+      } catch (err) {
+        const is503 = err.message?.includes('503') || err.status === 503;
+        if (is503 && attempt === 1) {
+          await new Promise((r) => setTimeout(r, 2000));
+          continue;
+        }
+        lastErr = err;
+        break;
       }
-      lastErr = err;
-      break;
     }
   }
 
-  if (lastErr?.message?.includes('503')) {
-    throw new Error('Gemini is experiencing high demand right now. Please try again in a moment.');
-  }
-  throw lastErr;
+  throw new Error('All Gemini models are currently busy. Please try again in a minute.');
 }
 
 module.exports = {
