@@ -45,7 +45,7 @@ const config = {
     userId: process.env.COMPOSIO_USER_ID || 'default',
     connectedAccountId: process.env.COMPOSIO_CONNECTED_ACCOUNT_ID || '',
     linkedinAuthConfigId: process.env.COMPOSIO_LINKEDIN_AUTH_CONFIG_ID || 'ac_AAliAsDSTsH0',
-    linkedinToolkitVersion: process.env.LINKEDIN_TOOLKIT_VERSION || '20260424_00',
+    linkedinToolkitVersion: process.env.LINKEDIN_TOOLKIT_VERSION || 'latest',
     authorUrn: process.env.LINKEDIN_AUTHOR_URN || '',
   },
 
